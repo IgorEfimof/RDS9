@@ -3,15 +3,8 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <link rel="apple-touch-icon" sizes="180x180" href="icons/icon180.png">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="RDS9">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>Рапидо Старт с LSTM</title>
-    <!-- Загрузка TensorFlow.js -->
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.18.0/dist/tf.min.js"></script>
+    <title>Рапидо Старт с Частотным Анализом</title>
     <style>
-        /* Все стили остаются без изменений */
         :root {
             --bg-color: #f5f5f7;
             --text-color: #1c1c1e;
@@ -28,7 +21,7 @@
             --lose-color: #ff453a;
             --hot-color: #ff9500;
             --cold-color: #0a84ff;
-            --lstm-color: #00bcd4;
+            --prediction-color: #00bcd4;
         }
 
         .dark-mode {
@@ -47,7 +40,7 @@
             --lose-color: #ff453a;
             --hot-color: #ff9f0a;
             --cold-color: #5ac8fa;
-            --lstm-color: #00b8d4;
+            --prediction-color: #00b8d4;
         }
 
         * {
@@ -133,8 +126,8 @@
         .number.special {
             background: var(--special-color);
         }
-        .number.lstm {
-            background: var(--lstm-color);
+        .number.prediction {
+            background: var(--prediction-color);
         }
         button {
             width: 100%;
@@ -359,7 +352,7 @@
         .tag-ogneva { background: var(--special-color); color: white; }
         .tag-karnaugh { background: #ff9500; color: white; }
         .tag-uniform { background: #4CAF50; color: white; }
-        .tag-lstm { background: var(--lstm-color); color: white; }
+        .tag-prediction { background: var(--prediction-color); color: white; }
         .frequency-bar {
             height: 5px;
             background: #e0e0e0;
@@ -433,48 +426,6 @@
             background-color: rgba(255,215,0,0.2);
             font-weight: bold;
         }
-        .training-status {
-            padding: 8px;
-            margin-top: 10px;
-            border-radius: 8px;
-            background: #e0f7fa;
-            color: #006064;
-            font-size: 14px;
-            display: none;
-        }
-        .dark-mode .training-status {
-            background: #004d40;
-            color: #e0f2f1;
-        }
-        .training-progress {
-            height: 8px;
-            background: #b2ebf2;
-            border-radius: 4px;
-            margin-top: 5px;
-            overflow: hidden;
-        }
-        .dark-mode .training-progress {
-            background: #00796b;
-        }
-        .training-progress-bar {
-            height: 100%;
-            background: #0097a7;
-            width: 0%;
-            transition: width 0.3s;
-        }
-        .dark-mode .training-progress-bar {
-            background: #00bcd4;
-        }
-        .model-info {
-            margin-top: 5px;
-            font-size: 12px;
-        }
-        .train-btn {
-            margin-top: 10px;
-            background: var(--lstm-color) !important;
-        }
-        
-        /* ИСПРАВЛЕННЫЕ стили для управления стоимостью билета */
         .ticket-price-container {
             display: flex;
             flex-wrap: wrap;
@@ -508,8 +459,45 @@
             margin: 0;
             width: auto;
         }
+        .prediction-info {
+            margin: 15px 0;
+            padding: 10px;
+            background: rgba(0, 188, 212, 0.1);
+            border-radius: 8px;
+        }
+        .prediction-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+        }
+        .prediction-bar {
+            height: 10px;
+            background: #e0e0e0;
+            border-radius: 5px;
+            margin-top: 3px;
+            overflow: hidden;
+            position: relative;
+        }
+        .prediction-fill {
+            height: 100%;
+            background: var(--prediction-color);
+        }
+        .prediction-marker {
+            position: absolute;
+            top: 0;
+            height: 100%;
+            width: 2px;
+            background: var(--win-color);
+        }
+        .prediction-label {
+            font-size: 0.8rem;
+            margin-top: 3px;
+        }
+        .prediction {
+            color: var(--prediction-color);
+            font-weight: bold;
+        }
         
-        /* Адаптация для маленьких экранов */
         @media (max-width: 400px) {
             .ticket-price-container {
                 flex-direction: column;
@@ -522,6 +510,13 @@
             .ticket-price-btn {
                 width: 100%;
             }
+            .method-selector {
+                flex-wrap: wrap;
+            }
+            .method-btn {
+                flex: 0 0 calc(50% - 4px);
+                font-size: 12px;
+            }
         }
     </style>
 </head>
@@ -530,8 +525,8 @@
     
     <div class="container">
         <div class="card">
-            <h1>Рапидо Старт с LSTM</h1>
-            <p class="subtitle">Анализ с нейросетевым прогнозированием</p>
+            <h1>Рапидо Старт с Частотным Анализом</h1>
+            <p class="subtitle">Прогнозирование периодов выигрышей</p>
         </div>
         
         <div class="card">
@@ -541,17 +536,12 @@
                 <div class="method-btn" data-method="ogneva">Огнева<span class="method-tag tag-ogneva">ог</span></div>
                 <div class="method-btn" data-method="karnaugh">Карнауха<span class="method-tag tag-karnaugh">ка</span></div>
                 <div class="method-btn" data-method="uniform">Равномерный<span class="method-tag tag-uniform">ур</span></div>
-                <div class="method-btn" data-method="lstm">LSTM<span class="method-tag tag-lstm">AI</span></div>
+                <div class="method-btn" data-method="prediction">Прогноз выигрыша<span class="method-tag tag-prediction">AI</span></div>
             </div>
             
-            <div id="trainingStatus" class="training-status">
-                <div>Статус модели: <span id="trainingMessage">Загрузка...</span></div>
-                <div class="training-progress">
-                    <div id="trainingProgress" class="training-progress-bar"></div>
-                </div>
-                <div class="model-info">Точность: <span id="modelAccuracy">0%</span></div>
-                <div class="model-info">Тиражей: <span id="modelDataSize">0</span></div>
-                <button id="trainModelBtn" class="train-btn">Обучить модель</button>
+            <div class="prediction-info" id="predictionInfo">
+                <h3>Анализ выигрышей:</h3>
+                <div id="methodPredictions"></div>
             </div>
             
             <p>Поле 1 (8 из 20):</p>
@@ -588,7 +578,6 @@
         
         <div class="card">
             <h2>Статистика выигрышей</h2>
-            <!-- Контейнер для управления стоимостью билета -->
             <div class="ticket-price-container">
                 <label>Стоимость билета (₽):</label>
                 <input type="number" id="ticketPriceInput" class="ticket-price-input" min="1" step="1" value="150">
@@ -661,7 +650,6 @@
         </div>
     </div>
 
-    <!-- Кастомная клавиатура -->
     <div class="custom-keyboard" id="customKeyboard">
         <div class="keyboard-container">
             <div class="keyboard-row">
@@ -712,13 +700,12 @@
     let ticketPrice = localStorage.getItem('ticketPrice') || 150;
     ticketPrice = parseInt(ticketPrice, 10);
     
-    // Статистика выигрышей
+    // Статистика выигрышей и периоды
     let winStats = JSON.parse(localStorage.getItem('rapidoWinStats') || JSON.stringify({
-        cold: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0 },
-        ogneva: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0 },
-        karnaugh: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0 },
-        uniform: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0 },
-        lstm: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0 }
+        cold: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0, currentPeriod: 0, winPeriods: [] },
+        ogneva: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0, currentPeriod: 0, winPeriods: [] },
+        karnaugh: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0, currentPeriod: 0, winPeriods: [] },
+        uniform: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0, currentPeriod: 0, winPeriods: [] }
     }));
     
     if (typeof winStats === 'string') {
@@ -847,12 +834,12 @@
                     case 'ogneva': tagClass = 'tag-ogneva'; tagText = 'ог'; break;
                     case 'karnaugh': tagClass = 'tag-karnaugh'; tagText = 'ка'; break;
                     case 'uniform': tagClass = 'tag-uniform'; tagText = 'ур'; break;
-                    case 'lstm': tagClass = 'tag-lstm'; tagText = 'AI'; break;
+                    case 'prediction': tagClass = 'tag-prediction'; tagText = 'AI'; break;
                 }
                 methodTag = `<span class="method-tag ${tagClass}">${tagText}</span>`;
             }
             
-            // Добавляем информацию о выигрыше, если она есть
+            // Добавляем информацию о выигрыше
             let winInfo = '';
             if (entry.winAmount) {
                 winInfo = `<span style="color: var(--win-color); font-weight: bold; margin-left: 5px;">+${entry.winAmount} ₽</span>`;
@@ -869,9 +856,6 @@
             `;
             historyList.appendChild(div);
         });
-        
-        // Обновляем счетчик данных модели
-        document.getElementById('modelDataSize').textContent = history.length;
     }
     
     // Удаление записи истории
@@ -883,6 +867,7 @@
             renderHistory();
             updateStats();
             updateWinStats();
+            updatePredictions();
         }
     });
     
@@ -897,14 +882,14 @@
             updateStats();
             
             winStats = {
-                cold: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0 },
-                ogneva: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0 },
-                karnaugh: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0 },
-                uniform: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0 },
-                lstm: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0 }
+                cold: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0, currentPeriod: 0, winPeriods: [] },
+                ogneva: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0, currentPeriod: 0, winPeriods: [] },
+                karnaugh: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0, currentPeriod: 0, winPeriods: [] },
+                uniform: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0, currentPeriod: 0, winPeriods: [] }
             };
             saveWinStats();
             updateWinStats();
+            updatePredictions();
             generateNumbers();
         }
     };
@@ -1002,11 +987,19 @@
                 winStats[bet.method].wins++;
                 winStats[bet.method].won += prize.amount;
                 winStats[bet.method].balance = winStats[bet.method].won - winStats[bet.method].spent;
+                
+                // Фиксируем период выигрыша
+                winStats[bet.method].winPeriods.push(winStats[bet.method].currentPeriod);
+                winStats[bet.method].currentPeriod = 0;
+            } else {
+                // Увеличиваем период без выигрыша
+                winStats[bet.method].currentPeriod++;
             }
             
             // Удаляем ставку после расчета выигрыша
             bets.splice(betIndex, 1);
             saveBets();
+            saveWinStats();
         }
         
         history.push(result);
@@ -1014,6 +1007,7 @@
         renderHistory();
         updateStats();
         updateWinStats();
+        updatePredictions();
         
         // Очищаем поля ввода
         document.getElementById('drawId').value = '';
@@ -1074,14 +1068,18 @@
             cold: { name: 'Холодные', class: 'tag-cold' },
             ogneva: { name: 'Огнева', class: 'tag-ogneva' },
             karnaugh: { name: 'Карнауха', class: 'tag-karnaugh' },
-            uniform: { name: 'Равномерный', class: 'tag-uniform' },
-            lstm: { name: 'LSTM Прогноз', class: 'tag-lstm' }
+            uniform: { name: 'Равномерный', class: 'tag-uniform' }
         };
         
         for(const [method, data] of Object.entries(winStats)) {
+            if (!methods[method]) continue;
+            
             const methodData = methods[method];
             const winRate = data.bets ? Math.round((data.wins / data.bets) * 100) : 0;
             const roi = data.spent ? Math.round((data.won / data.spent) * 100) : 0;
+            const avgPeriod = data.wins > 0 
+                ? Math.round(data.winPeriods.reduce((a, b) => a + b, 0) / data.winPeriods.length)
+                : 0;
             
             const statCard = document.createElement('div');
             statCard.className = 'stat-card';
@@ -1107,15 +1105,67 @@
                 </div>
                 
                 <div style="margin-top: 5px; font-size: 0.8rem;">
-                    <div>Потрачено: ${data.spent} ₽</div>
-                    <div>Выиграно: ${data.won} ₽</div>
-                    <div>ROI: ${roi}%</div>
+                    <div>Период: ${data.currentPeriod}/${avgPeriod || '?'}</div>
+                    <div>Выигрыши: ${data.winPeriods.length}</div>
                 </div>
             `;
             winStatsContainer.appendChild(statCard);
         }
         
         saveWinStats();
+    }
+    
+    // --- Частотный анализ выигрышей ---
+    function updatePredictions() {
+        const container = document.getElementById('methodPredictions');
+        container.innerHTML = '';
+        
+        const methods = {
+            cold: 'Холодные',
+            ogneva: 'Огнева',
+            karnaugh: 'Карнауха',
+            uniform: 'Равномерный'
+        };
+        
+        for (const [method, name] of Object.entries(methods)) {
+            const data = winStats[method];
+            if (!data) continue;
+            
+            const winRate = data.bets ? (data.wins / data.bets) * 100 : 0;
+            const avgPeriod = data.wins > 0 
+                ? data.winPeriods.reduce((a, b) => a + b, 0) / data.winPeriods.length
+                : 0;
+            
+            // Рассчитываем вероятность выигрыша
+            let probability = 0;
+            if (avgPeriod > 0) {
+                // Чем больше текущий период превышает средний, тем выше вероятность
+                probability = Math.min(95, Math.round(
+                    (1 - Math.exp(-data.currentPeriod / avgPeriod)) * 100
+                ));
+            }
+            
+            // Максимальный период для визуализации
+            const maxPeriod = Math.max(avgPeriod * 1.5, data.currentPeriod, 10);
+            
+            const row = document.createElement('div');
+            row.className = 'prediction-row';
+            row.innerHTML = `
+                <div style="flex: 1;">
+                    <strong>${name}:</strong> 
+                    <span class="prediction">${probability}%</span>
+                    <div class="prediction-bar">
+                        <div class="prediction-fill" style="width: ${(data.currentPeriod / maxPeriod) * 100}%"></div>
+                        ${avgPeriod > 0 ? `<div class="prediction-marker" style="left: ${(avgPeriod / maxPeriod) * 100}%"></div>` : ''}
+                    </div>
+                    <div class="prediction-label">
+                        ${data.currentPeriod} из ~${Math.round(avgPeriod)} ставок
+                    </div>
+                </div>
+            `;
+            
+            container.appendChild(row);
+        }
     }
     
     // --- Методы генерации ---
@@ -1127,6 +1177,7 @@
             document.querySelectorAll('.method-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             currentMethod = btn.dataset.method;
+            updatePredictions();
         });
     });
     
@@ -1138,41 +1189,41 @@
             : 0;
         const nextDrawId = lastDrawId + 1;
         
-        // Для LSTM используем асинхронную генерацию
-        if (currentMethod === 'lstm') {
-            generateLSTMNumbers().then(generatedNumbers => {
-                // Сохраняем ставку
-                const bet = {
-                    drawId: nextDrawId.toString(),
-                    method: currentMethod,
-                    numbers: {
-                        field1: [...generatedNumbers.nums1],
-                        field2: generatedNumbers.num2
-                    },
-                    timestamp: new Date().toISOString()
-                };
-                
-                bets.push(bet);
-                saveBets();
-                
-                // Отображаем числа
-                displayNumbers(generatedNumbers.nums1, generatedNumbers.num2, currentMethod);
-                
-                // Увеличиваем счетчик ставок
-                if(winStats[currentMethod]) {
-                    winStats[currentMethod].bets++;
-                    winStats[currentMethod].spent += ticketPrice;
-                    winStats[currentMethod].balance = winStats[currentMethod].won - winStats[currentMethod].spent;
-                    updateWinStats();
-                }
-                
-                // Автоматически заполняем номер тиража
-                document.getElementById('drawId').value = nextDrawId;
-            });
+        // Для метода прогнозирования используем специальную логику
+        if (currentMethod === 'prediction') {
+            const generated = generatePredictionNumbers();
+            displayNumbers(generated.nums1, generated.num2, 'prediction');
+            
+            // Сохраняем ставку
+            const bet = {
+                drawId: nextDrawId.toString(),
+                method: 'prediction',
+                numbers: {
+                    field1: [...generated.nums1],
+                    field2: generated.num2
+                },
+                timestamp: new Date().toISOString()
+            };
+            
+            bets.push(bet);
+            saveBets();
+            
+            // Увеличиваем счетчик ставок
+            winStats.prediction = winStats.prediction || { 
+                bets: 0, wins: 0, spent: 0, won: 0, balance: 0, currentPeriod: 0, winPeriods: [] 
+            };
+            winStats.prediction.bets++;
+            winStats.prediction.spent += ticketPrice;
+            winStats.prediction.balance = winStats.prediction.won - winStats.prediction.spent;
+            saveWinStats();
+            updateWinStats();
+            
+            // Автоматически заполняем номер тиража
+            document.getElementById('drawId').value = nextDrawId;
             return;
         }
         
-        // Для остальных методов - синхронная генерация
+        // Для остальных методов
         let generatedNumbers;
         switch(currentMethod) {
             case 'ogneva': 
@@ -1210,6 +1261,7 @@
             winStats[currentMethod].bets++;
             winStats[currentMethod].spent += ticketPrice;
             winStats[currentMethod].balance = winStats[currentMethod].won - winStats[currentMethod].spent;
+            saveWinStats();
             updateWinStats();
         }
         
@@ -1217,7 +1269,39 @@
         document.getElementById('drawId').value = nextDrawId;
     }
     
-    // Метод холодных чисел (оптимизированный)
+    // Метод прогнозирования выигрыша
+    function generatePredictionNumbers() {
+        // 1. Выбираем метод с наибольшей вероятностью выигрыша
+        let bestMethod = 'cold';
+        let bestProbability = 0;
+        
+        for (const method of ['cold', 'ogneva', 'karnaugh', 'uniform']) {
+            const data = winStats[method];
+            if (!data || data.wins === 0) continue;
+            
+            const avgPeriod = data.winPeriods.reduce((a, b) => a + b, 0) / data.winPeriods.length;
+            const probability = (1 - Math.exp(-data.currentPeriod / avgPeriod)) * 100;
+            
+            if (probability > bestProbability) {
+                bestProbability = probability;
+                bestMethod = method;
+            }
+        }
+        
+        // 2. Генерируем числа по выбранному методу
+        switch(bestMethod) {
+            case 'ogneva': 
+                return generateOgnevaNumbers(); 
+            case 'karnaugh': 
+                return generateKarnaughNumbers(); 
+            case 'uniform': 
+                return generateUniformNumbers(); 
+            default: 
+                return generateColdNumbers();
+        }
+    }
+    
+    // Метод холодных чисел
     function generateColdNumbers() {
         const countField1 = Array(20).fill(0);
         const countField2 = Array(4).fill(0);
@@ -1256,7 +1340,7 @@
         return { nums1: selected1, num2: selected2 };
     }
     
-    // Метод Огнева (исправленный)
+    // Метод Огнева
     function generateOgnevaNumbers() {
         if (history.length < 3) {
             return generateColdNumbers();
@@ -1308,7 +1392,7 @@
         return bestCombination || generateColdNumbers();
     }
     
-    // Метод Карнауха (исправленный)
+    // Метод Карнауха
     function generateKarnaughNumbers() {
         if (history.length < 5) {
             return generateColdNumbers();
@@ -1352,7 +1436,7 @@
         return { nums1: selected1, num2 };
     }
     
-    // Метод равномерного распределения (новый)
+    // Метод равномерного распределения
     function generateUniformNumbers() {
         const countField1 = Array(20).fill(0);
         const countField2 = Array(4).fill(0);
@@ -1407,7 +1491,7 @@
         return { nums1: selected1, num2: selected2 };
     }
     
-    // Случайная генерация (вспомогательная)
+    // Случайная генерация
     function generateRandomNumbers() {
         const nums1 = [];
         const availableNumbers = Array.from({ length: 20 }, (_, i) => i + 1);
@@ -1431,8 +1515,8 @@
         nums1.forEach(n => {
             const div = document.createElement('div');
             div.className = 'number';
-            if (method === 'lstm') {
-                div.classList.add('lstm');
+            if (method === 'prediction') {
+                div.classList.add('prediction');
             } else if(method === 'karnaugh' && nums1.indexOf(n) < 5) {
                 div.classList.add('special');
             } else if(method === 'uniform') {
@@ -1444,8 +1528,8 @@
         
         const div2 = document.createElement('div');
         div2.className = 'number small';
-        if (method === 'lstm') {
-            div2.classList.add('lstm');
+        if (method === 'prediction') {
+            div2.classList.add('prediction');
         } else if(method === 'ogneva' || method === 'uniform') {
             div2.classList.add('special');
         }
@@ -1460,331 +1544,10 @@
             div2.classList.add('selected');
         }, 100);
     }
-
-    // --- LSTM Модель (ИСПРАВЛЕННАЯ) ---
-    let lstmModel = null;
-    let isTraining = false;
-    const trainingStatus = document.getElementById('trainingStatus');
-    const trainingMessage = document.getElementById('trainingMessage');
-    const trainingProgress = document.getElementById('trainingProgress');
-    const modelAccuracy = document.getElementById('modelAccuracy');
-    const modelDataSize = document.getElementById('modelDataSize');
-    const trainModelBtn = document.getElementById('trainModelBtn');
-    
-    // Инициализация модели
-    async function initModel() {
-        trainingStatus.style.display = 'block';
-        trainingMessage.textContent = 'Инициализация модели...';
-        
-        // Проверяем наличие сохраненной модели
-        try {
-            const modelInfo = JSON.parse(localStorage.getItem('lstmModelInfo') || '{}');
-            if (modelInfo.modelExists) {
-                try {
-                    // Загружаем модель из IndexedDB
-                    lstmModel = await tf.loadLayersModel('indexeddb://rapido-lstm-model');
-                    
-                    // Явная компиляция модели после загрузки
-                    lstmModel.compile({
-                        optimizer: tf.train.adam(0.0005),
-                        loss: 'binaryCrossentropy',
-                        metrics: ['accuracy']
-                    });
-                    
-                    modelAccuracy.textContent = modelInfo.accuracy ? `${modelInfo.accuracy}%` : '0%';
-                    trainingMessage.textContent = 'Модель загружена';
-                } catch (e) {
-                    console.error('Ошибка загрузки модели:', e);
-                    // Создаем новую модель при ошибке загрузки
-                    createModel();
-                    localStorage.removeItem('lstmModelInfo');
-                    trainingMessage.textContent = 'Создана новая модель';
-                }
-                return;
-            }
-        } catch (e) {
-            console.log('Модель не найдена, создаем новую', e);
-        }
-        
-        // Создаем новую модель
-        createModel();
-        trainingMessage.textContent = 'Готово к обучению';
-    }
-    
-    // Создание архитектуры модели
-    function createModel() {
-        lstmModel = tf.sequential();
-        
-        // Улучшенная архитектура
-        lstmModel.add(tf.layers.lstm({
-            units: 128,
-            inputShape: [10, 24],
-            returnSequences: true
-        }));
-        
-        lstmModel.add(tf.layers.dropout({rate: 0.3}));
-        
-        lstmModel.add(tf.layers.lstm({
-            units: 64,
-            returnSequences: false
-        }));
-        
-        lstmModel.add(tf.layers.dropout({rate: 0.3}));
-        
-        lstmModel.add(tf.layers.dense({
-            units: 48,
-            activation: 'relu'
-        }));
-        
-        // Выходной слой
-        lstmModel.add(tf.layers.dense({
-            units: 24,
-            activation: 'sigmoid'
-        }));
-        
-        // Компиляция модели
-        lstmModel.compile({
-            optimizer: tf.train.adam(0.0005),
-            loss: 'binaryCrossentropy',
-            metrics: ['accuracy']
-        });
-    }
-    
-    // Подготовка данных для обучения
-    function prepareData() {
-        if (history.length < 15) {
-            trainingMessage.textContent = 'Недостаточно данных (минимум 15 тиражей)';
-            return null;
-        }
-        
-        const sequenceLength = 10;
-        const X = [];
-        const y = [];
-        
-        // Преобразуем историю в числовые последовательности
-        for (let i = sequenceLength; i < history.length; i++) {
-            const sequence = [];
-            
-            // Формируем последовательность из 10 предыдущих тиражей
-            for (let j = i - sequenceLength; j < i; j++) {
-                const draw = history[j];
-                const vector = Array(24).fill(0);
-                
-                // Поле 1 (20 чисел)
-                draw.field1.forEach(num => {
-                    if (num >= 1 && num <= 20) vector[num-1] = 1;
-                });
-                
-                // Поле 2 (4 числа)
-                if (draw.field2 >= 1 && draw.field2 <= 4) {
-                    vector[20 + draw.field2 - 1] = 1;
-                }
-                
-                sequence.push(vector);
-            }
-            
-            X.push(sequence);
-            
-            // Целевой тираж
-            const targetDraw = history[i];
-            const targetVector = Array(24).fill(0);
-            
-            targetDraw.field1.forEach(num => {
-                if (num >= 1 && num <= 20) targetVector[num-1] = 1;
-            });
-            
-            if (targetDraw.field2 >= 1 && targetDraw.field2 <= 4) {
-                targetVector[20 + targetDraw.field2 - 1] = 1;
-            }
-            
-            y.push(targetVector);
-        }
-        
-        return {
-            X: tf.tensor3d(X),
-            y: tf.tensor2d(y)
-        };
-    }
-    
-    // Обучение модели
-    async function trainModel() {
-        if (isTraining || history.length < 15) return;
-        
-        isTraining = true;
-        trainingStatus.style.display = 'block';
-        trainingMessage.textContent = 'Подготовка данных...';
-        trainModelBtn.disabled = true;
-        
-        // Подготовка данных
-        const data = prepareData();
-        if (!data) {
-            trainingMessage.textContent = 'Недостаточно данных для обучения';
-            isTraining = false;
-            trainModelBtn.disabled = false;
-            return;
-        }
-        
-        trainingMessage.textContent = 'Обучение модели...';
-        
-        try {
-            // Обучение модели
-            const historyInfo = await lstmModel.fit(data.X, data.y, {
-                epochs: 100,
-                batchSize: 16,
-                validationSplit: 0.2,
-                callbacks: {
-                    onEpochEnd: async (epoch, logs) => {
-                        trainingMessage.textContent = `Эпоха ${epoch + 1}/100...`;
-                        trainingProgress.style.width = `${((epoch + 1) / 100) * 100}%`;
-                        modelAccuracy.textContent = `${Math.round(logs.acc * 100)}%`;
-                        await tf.nextFrame(); // Даем браузеру обновиться
-                        
-                        // Ранняя остановка при достижении хорошего результата
-                        if (logs.val_loss < 0.1) {
-                            lstmModel.stopTraining = true;
-                        }
-                    }
-                }
-            });
-            
-            // Сохраняем модель
-            await lstmModel.save('indexeddb://rapido-lstm-model');
-            
-            // Сохраняем метаданные
-            const accuracy = Math.round(historyInfo.history.acc[historyInfo.history.acc.length - 1] * 100);
-            localStorage.setItem('lstmModelInfo', JSON.stringify({
-                accuracy: accuracy,
-                trainedAt: new Date().toISOString(),
-                dataSize: history.length,
-                modelExists: true
-            }));
-            
-            modelAccuracy.textContent = `${accuracy}%`;
-            trainingMessage.textContent = 'Обучение завершено!';
-        } catch (e) {
-            console.error('Ошибка обучения:', e);
-            trainingMessage.textContent = 'Ошибка обучения: ' + e.message;
-        } finally {
-            isTraining = false;
-            trainModelBtn.disabled = false;
-            // Освобождаем память
-            if (data) {
-                data.X.dispose();
-                data.y.dispose();
-            }
-        }
-    }
-    
-    // Генерация чисел с помощью LSTM
-    async function generateLSTMNumbers() {
-        if (!lstmModel || history.length < 10) {
-            return generateColdNumbers(); // Fallback
-        }
-        
-        try {
-            // Создаем последовательность из последних 10 тиражей
-            const sequence = [];
-            
-            for (let i = history.length - 10; i < history.length; i++) {
-                const draw = history[i];
-                const vector = Array(24).fill(0);
-                
-                draw.field1.forEach(num => {
-                    if (num >= 1 && num <= 20) vector[num-1] = 1;
-                });
-                
-                if (draw.field2 >= 1 && draw.field2 <= 4) {
-                    vector[20 + draw.field2 - 1] = 1;
-                }
-                
-                sequence.push(vector);
-            }
-            
-            // Преобразуем в тензор
-            const input = tf.tensor3d([sequence]);
-            
-            // Получаем предсказание
-            const prediction = lstmModel.predict(input);
-            const values = await prediction.data();
-            
-            // Освобождаем память
-            prediction.dispose();
-            input.dispose();
-            
-            // 1. Нормализуем вероятности для поля 1
-            const field1Probs = values.slice(0, 20);
-            const sum1 = field1Probs.reduce((a, b) => a + b, 0);
-            const normalizedProbs1 = sum1 > 0 ? 
-                field1Probs.map(p => p / sum1) : 
-                Array(20).fill(1/20);
-            
-            // 2. Выбираем числа с учетом вероятностей
-            const nums1 = [];
-            const availableNumbers = Array.from({ length: 20 }, (_, i) => i + 1);
-            
-            for (let i = 0; i < 8; i++) {
-                // Создаем распределение вероятностей
-                let rand = Math.random();
-                let cumulative = 0;
-                let selectedIndex = 0;
-                
-                for (let j = 0; j < availableNumbers.length; j++) {
-                    const num = availableNumbers[j];
-                    cumulative += normalizedProbs1[num-1];
-                    if (rand <= cumulative) {
-                        selectedIndex = j;
-                        break;
-                    }
-                }
-                
-                nums1.push(availableNumbers[selectedIndex]);
-                availableNumbers.splice(selectedIndex, 1);
-                
-                // Пересчитываем вероятности для оставшихся чисел
-                const newSum = availableNumbers.reduce(
-                    (sum, num) => sum + normalizedProbs1[num-1], 0
-                );
-                
-                if (newSum > 0) {
-                    for (let j = 0; j < availableNumbers.length; j++) {
-                        const num = availableNumbers[j];
-                        normalizedProbs1[num-1] /= newSum;
-                    }
-                }
-            }
-            
-            nums1.sort((a, b) => a - b);
-            
-            // 3. Выбираем число для поля 2
-            const field2Probs = values.slice(20, 24);
-            const sum2 = field2Probs.reduce((a, b) => a + b, 0);
-            const normalizedProbs2 = sum2 > 0 ? 
-                field2Probs.map(p => p / sum2) : 
-                Array(4).fill(0.25);
-            
-            let rand = Math.random();
-            let cumulative = 0;
-            let field2Num = 1;
-            
-            for (let i = 0; i < 4; i++) {
-                cumulative += normalizedProbs2[i];
-                if (rand <= cumulative) {
-                    field2Num = i + 1;
-                    break;
-                }
-            }
-            
-            return { nums1, num2: field2Num };
-        } catch (e) {
-            console.error('Ошибка генерации LSTM:', e);
-            return generateColdNumbers();
-        }
-    }
     
     // --- Инициализация при загрузке ---
-    document.addEventListener('DOMContentLoaded', async () => {
+    document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('genBtn').addEventListener('click', generateNumbers);
-        trainModelBtn.addEventListener('click', trainModel);
         
         // Установка стоимости билета в поле ввода
         document.getElementById('ticketPriceInput').value = ticketPrice;
@@ -1811,15 +1574,13 @@
         
         updateStats();
         updateWinStats();
+        updatePredictions();
         renderHistory();
         
-        // Инициализируем LSTM модель
-        await initModel();
-        
-        // Автоматическое обучение при наличии данных
-        if (history.length >= 15) {
-            setTimeout(trainModel, 1000);
-        }
+        // Инициализация для метода прогнозирования
+        winStats.prediction = winStats.prediction || { 
+            bets: 0, wins: 0, spent: 0, won: 0, balance: 0, currentPeriod: 0, winPeriods: [] 
+        };
     });
 </script>
 </body>
