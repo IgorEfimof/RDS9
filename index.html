@@ -1,0 +1,1826 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/icon180.png">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="RDS8">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Рапидо Старт с LSTM</title>
+    <!-- Загрузка TensorFlow.js -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.18.0/dist/tf.min.js"></script>
+    <style>
+        /* Все стили остаются без изменений */
+        :root {
+            --bg-color: #f5f5f7;
+            --text-color: #1c1c1e;
+            --card-bg: white;
+            --border-color: #ddd;
+            --primary-color: #0066cc;
+            --secondary-color: #ff2d55;
+            --keyboard-bg: #e5e5ea;
+            --button-active: #004499;
+            --history-border: #eee;
+            --selected-color: #34c759;
+            --special-color: #af52de;
+            --win-color: #30d158;
+            --lose-color: #ff453a;
+            --hot-color: #ff9500;
+            --cold-color: #0a84ff;
+            --lstm-color: #00bcd4;
+        }
+
+        .dark-mode {
+            --bg-color: #1c1c1e;
+            --text-color: #f5f5f7;
+            --card-bg: #2c2c2e;
+            --border-color: #444;
+            --primary-color: #0a84ff;
+            --secondary-color: #ff375f;
+            --keyboard-bg: #3a3a3c;
+            --button-active: #0061c8;
+            --history-border: #444;
+            --selected-color: #30d158;
+            --special-color: #bf5af2;
+            --win-color: #30d158;
+            --lose-color: #ff453a;
+            --hot-color: #ff9f0a;
+            --cold-color: #5ac8fa;
+            --lstm-color: #00b8d4;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            padding: 10px;
+            background: var(--bg-color);
+            color: var(--text-color);
+            max-width: 100%;
+            margin: 0 auto;
+            -webkit-user-select: none;
+            user-select: none;
+            touch-action: manipulation;
+        }
+        .container {
+            max-width: 100%;
+            width: 100%;
+            margin: 0 auto;
+            padding-bottom: 280px;
+        }
+        h1 {
+            font-size: 1.5rem;
+            text-align: center;
+            color: var(--primary-color);
+            margin-bottom: 5px;
+        }
+        .subtitle {
+            text-align: center;
+            color: var(--text-color);
+            opacity: 0.8;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+        }
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h2 {
+            color: var(--primary-color);
+            font-size: 1.2rem;
+            margin-bottom: 8px;
+        }
+        h3 {
+            color: var(--primary-color);
+            font-size: 1rem;
+            margin: 10px 0 5px;
+        }
+        .numbers {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin: 8px 0;
+        }
+        .number {
+            width: 36px;
+            height: 36px;
+            border-radius: 18px;
+            background: var(--primary-color);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 15px;
+            transition: transform 0.2s;
+        }
+        .number.selected {
+            background: var(--selected-color);
+            transform: scale(1.1);
+        }
+        .number.small {
+            background: var(--secondary-color);
+            width: 36px;
+        }
+        .number.special {
+            background: var(--special-color);
+        }
+        .number.lstm {
+            background: var(--lstm-color);
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            margin-top: 8px;
+            -webkit-tap-highlight-color: transparent;
+        }
+        button:active {
+            background: var(--button-active);
+        }
+        button.secondary {
+            background: var(--keyboard-bg);
+            color: var(--text-color);
+        }
+        #fakeInput {
+            position: absolute;
+            opacity: 0;
+            height: 0;
+            width: 0;
+        }
+        #inputDisplay {
+            width: 100%;
+            min-height: 70px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 8px;
+            margin-bottom: 8px;
+            font-size: 15px;
+            background: var(--card-bg);
+            word-wrap: break-word;
+            color: var(--text-color);
+        }
+        .input-active {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(0,102,204,0.2);
+        }
+        .stats-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 5px;
+            font-size: 13px;
+        }
+        .stats-table th, .stats-table td {
+            padding: 6px;
+            text-align: left;
+            border-bottom: 1px solid var(--history-border);
+        }
+        .hot {
+            color: var(--hot-color);
+            font-weight: bold;
+        }
+        .cold {
+            color: var(--cold-color);
+            font-weight: bold;
+        }
+        .history-item {
+            padding: 8px 0;
+            border-bottom: 1px solid var(--history-border);
+            font-size: 13px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .history-item button {
+            width: auto;
+            padding: 2px 8px;
+            margin: 0;
+            background: var(--secondary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .custom-keyboard {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--keyboard-bg);
+            padding: 8px;
+            border-top: 1px solid var(--border-color);
+            z-index: 1000;
+            display: none;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .keyboard-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 6px;
+        }
+        .keyboard-key {
+            flex: 0 1 80px;
+            min-width: 80px;
+            height: 48px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            color: var(--text-color);
+        }
+        .keyboard-key:active {
+            background: var(--history-border);
+        }
+        .keyboard-key.wide {
+            flex: 2;
+        }
+        .keyboard-key.blue {
+            background: var(--primary-color);
+            color: white;
+        }
+        .keyboard-key.red {
+            background: var(--secondary-color);
+            color: white;
+        }
+        .theme-toggle {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            width: 40px;
+            height: 40px;
+            border-radius: 20px;
+            background: var(--primary-color);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 1000;
+            border: none;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        .validation-error {
+            color: var(--secondary-color);
+            font-size: 12px;
+            margin-top: 5px;
+            display: none;
+        }
+        .method-selector {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .method-btn {
+            flex: 1;
+            padding: 8px;
+            text-align: center;
+            background: var(--keyboard-bg);
+            border-radius: 8px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .method-btn.active {
+            background: var(--primary-color);
+            color: white;
+        }
+        .info-icon {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border-radius: 8px;
+            background: var(--primary-color);
+            color: white;
+            text-align: center;
+            line-height: 16px;
+            font-size: 12px;
+            margin-left: 5px;
+            cursor: help;
+        }
+        .win-stats {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .stat-card {
+            flex: 1;
+            min-width: 120px;
+            background: var(--card-bg);
+            border-radius: 8px;
+            padding: 10px;
+            text-align: center;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+        }
+        .stat-value {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin: 5px 0;
+        }
+        .stat-label {
+            font-size: 0.8rem;
+            opacity: 0.8;
+        }
+        .win {
+            color: var(--win-color);
+        }
+        .lose {
+            color: var(--lose-color);
+        }
+        .method-tag {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            margin-left: 5px;
+            background: var(--card-bg);
+        }
+        .tag-cold { background: var(--cold-color); color: white; }
+        .tag-ogneva { background: var(--special-color); color: white; }
+        .tag-karnaugh { background: #ff9500; color: white; }
+        .tag-uniform { background: #4CAF50; color: white; }
+        .tag-lstm { background: var(--lstm-color); color: white; }
+        .frequency-bar {
+            height: 5px;
+            background: #e0e0e0;
+            border-radius: 3px;
+            margin-top: 3px;
+            overflow: hidden;
+        }
+        .frequency-fill {
+            height: 100%;
+            background: var(--primary-color);
+        }
+        .draw-inputs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .draw-input {
+            flex: 1;
+        }
+        .draw-input label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 0.9rem;
+        }
+        .draw-input input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--card-bg);
+            color: var(--text-color);
+        }
+        .input-field {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--card-bg);
+            color: var(--text-color);
+            font-size: 15px;
+            margin-bottom: 5px;
+        }
+        .input-field:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(0,102,204,0.2);
+            outline: none;
+        }
+        .keyboard-key.disabled {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+        .keyboard-container {
+            max-width: 500px;
+            margin: 0 auto;
+        }
+        .prize-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 12px;
+        }
+        .prize-table th, .prize-table td {
+            padding: 8px;
+            text-align: center;
+            border: 1px solid var(--border-color);
+        }
+        .prize-table th {
+            background-color: rgba(0,102,204,0.1);
+        }
+        .jackpot {
+            background-color: rgba(255,215,0,0.2);
+            font-weight: bold;
+        }
+        .training-status {
+            padding: 8px;
+            margin-top: 10px;
+            border-radius: 8px;
+            background: #e0f7fa;
+            color: #006064;
+            font-size: 14px;
+            display: none;
+        }
+        .dark-mode .training-status {
+            background: #004d40;
+            color: #e0f2f1;
+        }
+        .training-progress {
+            height: 8px;
+            background: #b2ebf2;
+            border-radius: 4px;
+            margin-top: 5px;
+            overflow: hidden;
+        }
+        .dark-mode .training-progress {
+            background: #00796b;
+        }
+        .training-progress-bar {
+            height: 100%;
+            background: #0097a7;
+            width: 0%;
+            transition: width 0.3s;
+        }
+        .dark-mode .training-progress-bar {
+            background: #00bcd4;
+        }
+        .model-info {
+            margin-top: 5px;
+            font-size: 12px;
+        }
+        .train-btn {
+            margin-top: 10px;
+            background: var(--lstm-color) !important;
+        }
+        
+        /* ИСПРАВЛЕННЫЕ стили для управления стоимостью билета */
+        .ticket-price-container {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(0, 102, 204, 0.1);
+            border-radius: 8px;
+        }
+        .ticket-price-container label {
+            flex: 0 0 auto;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+        .ticket-price-input {
+            flex: 1;
+            min-width: 80px;
+            max-width: 150px;
+            padding: 8px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--card-bg);
+            color: var(--text-color);
+            font-size: 15px;
+        }
+        .ticket-price-btn {
+            flex: 0 0 auto;
+            padding: 8px 15px;
+            white-space: nowrap;
+            margin: 0;
+            width: auto;
+        }
+        
+        /* Адаптация для маленьких экранов */
+        @media (max-width: 400px) {
+            .ticket-price-container {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .ticket-price-input {
+                max-width: none;
+                width: 100%;
+            }
+            .ticket-price-btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <button class="theme-toggle" id="themeToggle">🌓</button>
+    
+    <div class="container">
+        <div class="card">
+            <h1>Рапидо Старт с LSTM</h1>
+            <p class="subtitle">Анализ с нейросетевым прогнозированием</p>
+        </div>
+        
+        <div class="card">
+            <h2>Сгенерировать числа</h2>
+            <div class="method-selector">
+                <div class="method-btn active" data-method="cold">Холодные<span class="method-tag tag-cold">хо</span></div>
+                <div class="method-btn" data-method="ogneva">Огнева<span class="method-tag tag-ogneva">ог</span></div>
+                <div class="method-btn" data-method="karnaugh">Карнауха<span class="method-tag tag-karnaugh">ка</span></div>
+                <div class="method-btn" data-method="uniform">Равномерный<span class="method-tag tag-uniform">ур</span></div>
+                <div class="method-btn" data-method="lstm">LSTM<span class="method-tag tag-lstm">AI</span></div>
+            </div>
+            
+            <div id="trainingStatus" class="training-status">
+                <div>Статус модели: <span id="trainingMessage">Загрузка...</span></div>
+                <div class="training-progress">
+                    <div id="trainingProgress" class="training-progress-bar"></div>
+                </div>
+                <div class="model-info">Точность: <span id="modelAccuracy">0%</span></div>
+                <div class="model-info">Тиражей: <span id="modelDataSize">0</span></div>
+                <button id="trainModelBtn" class="train-btn">Обучить модель</button>
+            </div>
+            
+            <p>Поле 1 (8 из 20):</p>
+            <div class="numbers" id="field1"></div>
+            <p>Поле 2 (1 из 4):</p>
+            <div class="numbers" id="field2"></div>
+            <button id="genBtn">Сгенерировать</button>
+        </div>
+        
+        <div class="card">
+            <h2>Добавить историю розыгрыша</h2>
+            <div class="draw-inputs">
+                <div class="draw-input">
+                    <label>Тираж</label>
+                    <input type="text" id="drawId" class="input-field" placeholder="Номер тиража" readonly>
+                </div>
+                <div class="draw-input">
+                    <label>Поле 1 (8 чисел)</label>
+                    <input type="text" id="drawField1" class="input-field" placeholder="1,2,3,4,5,6,7,8" readonly>
+                </div>
+                <div class="draw-input">
+                    <label>Поле 2 (1 число)</label>
+                    <input type="text" id="drawField2" class="input-field" placeholder="1" readonly>
+                </div>
+            </div>
+            <div id="validationError" class="validation-error"></div>
+            <button id="addHistoryBtn">Добавить результат</button>
+        </div>
+        
+        <div class="card">
+            <h2>Статистика чисел</h2>
+            <table class="stats-table" id="statsTable"></table>
+        </div>
+        
+        <div class="card">
+            <h2>Статистика выигрышей</h2>
+            <!-- Контейнер для управления стоимостью билета -->
+            <div class="ticket-price-container">
+                <label>Стоимость билета (₽):</label>
+                <input type="number" id="ticketPriceInput" class="ticket-price-input" min="1" step="1" value="150">
+                <button id="updatePriceBtn" class="ticket-price-btn">Обновить</button>
+            </div>
+            
+            <div class="win-stats" id="winStats"></div>
+        </div>
+        
+        <div class="card">
+            <h2>Таблица выигрышей</h2>
+            <table class="prize-table">
+                <tr>
+                    <th>Угадано в 1 поле</th>
+                    <th>Угадано во 2 поле</th>
+                    <th>Выигрыш</th>
+                </tr>
+                <tr class="jackpot">
+                    <td>8</td>
+                    <td>1</td>
+                    <td>Суперприз</td>
+                </tr>
+                <tr>
+                    <td>8</td>
+                    <td>0</td>
+                    <td>25 000 ₽</td>
+                </tr>
+                <tr>
+                    <td>7</td>
+                    <td>1</td>
+                    <td>5 000 ₽</td>
+                </tr>
+                <tr>
+                    <td>7</td>
+                    <td>0</td>
+                    <td>1 000 ₽</td>
+                </tr>
+                <tr>
+                    <td>6</td>
+                    <td>1</td>
+                    <td>175 ₽</td>
+                </tr>
+                <tr>
+                    <td>6</td>
+                    <td>0</td>
+                    <td>150 ₽</td>
+                </tr>
+                <tr>
+                    <td>5</td>
+                    <td>1</td>
+                    <td>100 ₽</td>
+                </tr>
+                <tr>
+                    <td>5</td>
+                    <td>0</td>
+                    <td>50 ₽</td>
+                </tr>
+                <tr>
+                    <td>4</td>
+                    <td>1</td>
+                    <td>25 ₽</td>
+                </tr>
+            </table>
+        </div>
+        
+        <div class="card" style="max-height: 300px; overflow-y: auto;">
+            <h2>История розыгрышей</h2>
+            <div id="historyList"></div>
+            <button id="clearHistoryBtn" class="secondary">Очистить историю</button>
+        </div>
+    </div>
+
+    <!-- Кастомная клавиатура -->
+    <div class="custom-keyboard" id="customKeyboard">
+        <div class="keyboard-container">
+            <div class="keyboard-row">
+                <div class="keyboard-key" data-key="1">1</div>
+                <div class="keyboard-key" data-key="2">2</div>
+                <div class="keyboard-key" data-key="3">3</div>
+                <div class="keyboard-key" data-key="4">4</div>
+                <div class="keyboard-key" data-key="5">5</div>
+            </div>
+            <div class="keyboard-row">
+                <div class="keyboard-key" data-key="6">6</div>
+                <div class="keyboard-key" data-key="7">7</div>
+                <div class="keyboard-key" data-key="8">8</div>
+                <div class="keyboard-key" data-key="9">9</div>
+                <div class="keyboard-key" data-key="0">0</div>
+            </div>
+            <div class="keyboard-row">
+                <div class="keyboard-key" data-key=",">,</div>
+                <div class="keyboard-key red" data-key="backspace">⌫</div>
+                <div class="keyboard-key blue" data-key="done">Готово</div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    // --- Тема ---
+    const themeToggle = document.getElementById('themeToggle');
+    function applyTheme(dark) {
+        if(dark) {
+            document.documentElement.classList.add('dark-mode');
+            localStorage.setItem('darkMode', 'true');
+        } else {
+            document.documentElement.classList.remove('dark-mode');
+            localStorage.setItem('darkMode', 'false');
+        }
+    }
+    themeToggle.onclick = () => {
+        const dark = document.documentElement.classList.contains('dark-mode');
+        applyTheme(!dark);
+    };
+    applyTheme(localStorage.getItem('darkMode') === 'true');
+
+    // --- История розыгрышей и ставок ---
+    let history = JSON.parse(localStorage.getItem('rapidoHistory') || '[]');
+    let bets = JSON.parse(localStorage.getItem('rapidoBets') || '[]');
+    
+    // Инициализация стоимости билета
+    let ticketPrice = localStorage.getItem('ticketPrice') || 150;
+    ticketPrice = parseInt(ticketPrice, 10);
+    
+    // Статистика выигрышей
+    let winStats = JSON.parse(localStorage.getItem('rapidoWinStats') || JSON.stringify({
+        cold: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0 },
+        ogneva: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0 },
+        karnaugh: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0 },
+        uniform: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0 },
+        lstm: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0 }
+    }));
+    
+    if (typeof winStats === 'string') {
+        winStats = JSON.parse(winStats);
+    }
+
+    // Таблица выигрышей
+    const prizeTable = {
+        '8,1': { amount: 5000000, label: 'Суперприз' },
+        '8,0': { amount: 25000, label: '25 000 ₽' },
+        '7,1': { amount: 5000, label: '5 000 ₽' },
+        '7,0': { amount: 1000, label: '1 000 ₽' },
+        '6,1': { amount: 175, label: '175 ₽' },
+        '6,0': { amount: 150, label: '150 ₽' },
+        '5,1': { amount: 100, label: '100 ₽' },
+        '5,0': { amount: 50, label: '50 ₽' },
+        '4,1': { amount: 25, label: '25 ₽' }
+    };
+
+    // Сохраняем ставки
+    function saveBets() {
+        localStorage.setItem('rapidoBets', JSON.stringify(bets));
+    }
+
+    // Сохраняем статистику
+    function saveWinStats() {
+        localStorage.setItem('rapidoWinStats', JSON.stringify(winStats));
+    }
+
+    // Сохраняем историю
+    function saveHistory() {
+        localStorage.setItem('rapidoHistory', JSON.stringify(history));
+    }
+    
+    // Сохраняем стоимость билета
+    function saveTicketPrice() {
+        localStorage.setItem('ticketPrice', ticketPrice);
+    }
+
+    // --- Кастомная клавиатура ---
+    const customKeyboard = document.getElementById('customKeyboard');
+    let currentInput = null;
+
+    // Инициализация клавиатуры
+    document.querySelectorAll('.keyboard-key').forEach(key => {
+        key.addEventListener('click', () => {
+            const keyValue = key.dataset.key;
+            handleKeyPress(keyValue);
+        });
+    });
+
+    // Обработка нажатий клавиш
+    function handleKeyPress(key) {
+        if (!currentInput) return;
+        
+        const value = currentInput.value;
+        
+        switch (key) {
+            case 'backspace':
+                currentInput.value = value.slice(0, -1);
+                break;
+            case 'done':
+                hideKeyboard();
+                break;
+            case ',':
+                if (currentInput.id === 'drawField1' && value.split(',').length < 8) {
+                    currentInput.value += ',';
+                }
+                break;
+            default:
+                if (currentInput.id === 'drawField2') {
+                    if (['1','2','3','4'].includes(key)) {
+                        currentInput.value = key;
+                    }
+                } else if (currentInput.id === 'drawId') {
+                    if (key >= '0' && key <= '9') {
+                        currentInput.value += key;
+                    }
+                } else {
+                    currentInput.value += key;
+                }
+        }
+    }
+
+    // Показать/скрыть клавиатуру
+    function showKeyboard(input) {
+        currentInput = input;
+        customKeyboard.style.display = 'flex';
+        input.classList.add('input-active');
+    }
+
+    function hideKeyboard() {
+        if (currentInput) {
+            currentInput.classList.remove('input-active');
+            currentInput = null;
+        }
+        customKeyboard.style.display = 'none';
+    }
+
+    // Обработчики для полей ввода
+    document.getElementById('drawId').addEventListener('focus', () => showKeyboard(document.getElementById('drawId')));
+    document.getElementById('drawField1').addEventListener('focus', () => showKeyboard(document.getElementById('drawField1')));
+    document.getElementById('drawField2').addEventListener('focus', () => showKeyboard(document.getElementById('drawField2')));
+
+    document.addEventListener('click', (e) => {
+        if (!currentInput) return;
+        const isInput = e.target.classList.contains('input-field');
+        const isKeyboard = e.target.closest('.custom-keyboard');
+        if (!isInput && !isKeyboard) hideKeyboard();
+    });
+
+    // --- Отображение истории ---
+    const historyList = document.getElementById('historyList');
+    function renderHistory() {
+        historyList.innerHTML = '';
+        history.forEach((entry, idx) => {
+            const div = document.createElement('div');
+            div.className = 'history-item';
+            
+            let methodTag = '';
+            if(entry.method) {
+                let tagClass = '';
+                let tagText = '';
+                switch(entry.method) {
+                    case 'cold': tagClass = 'tag-cold'; tagText = 'хо'; break;
+                    case 'ogneva': tagClass = 'tag-ogneva'; tagText = 'ог'; break;
+                    case 'karnaugh': tagClass = 'tag-karnaugh'; tagText = 'ка'; break;
+                    case 'uniform': tagClass = 'tag-uniform'; tagText = 'ур'; break;
+                    case 'lstm': tagClass = 'tag-lstm'; tagText = 'AI'; break;
+                }
+                methodTag = `<span class="method-tag ${tagClass}">${tagText}</span>`;
+            }
+            
+            // Добавляем информацию о выигрыше, если она есть
+            let winInfo = '';
+            if (entry.winAmount) {
+                winInfo = `<span style="color: var(--win-color); font-weight: bold; margin-left: 5px;">+${entry.winAmount} ₽</span>`;
+            }
+            
+            div.innerHTML = `
+                <div>
+                    <strong>Тираж ${entry.drawId}:</strong> 
+                    ${entry.field1.join(',')} | ${entry.field2}
+                    ${methodTag}
+                    ${winInfo}
+                </div>
+                <button data-idx="${idx}">X</button>
+            `;
+            historyList.appendChild(div);
+        });
+        
+        // Обновляем счетчик данных модели
+        document.getElementById('modelDataSize').textContent = history.length;
+    }
+    
+    // Удаление записи истории
+    historyList.addEventListener('click', e => {
+        if(e.target.tagName === 'BUTTON') {
+            const idx = +e.target.dataset.idx;
+            history.splice(idx, 1);
+            saveHistory();
+            renderHistory();
+            updateStats();
+            updateWinStats();
+        }
+    });
+    
+    // Очистка истории
+    document.getElementById('clearHistoryBtn').onclick = () => {
+        if(confirm('Очистить всю историю, ставки и статистику?')) {
+            history = [];
+            bets = [];
+            saveHistory();
+            saveBets();
+            renderHistory();
+            updateStats();
+            
+            winStats = {
+                cold: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0 },
+                ogneva: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0 },
+                karnaugh: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0 },
+                uniform: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0 },
+                lstm: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0 }
+            };
+            saveWinStats();
+            updateWinStats();
+            generateNumbers();
+        }
+    };
+
+    // --- Валидация ввода ---
+    const validationError = document.getElementById('validationError');
+
+    function validateDrawInput() {
+        validationError.style.display = 'none';
+        const drawId = document.getElementById('drawId').value.trim();
+        const field1 = document.getElementById('drawField1').value.trim();
+        const field2 = document.getElementById('drawField2').value.trim();
+        
+        if(!drawId || !field1 || !field2) {
+            validationError.textContent = 'Заполните все поля';
+            validationError.style.display = 'block';
+            return false;
+        }
+        
+        // Проверка дубликата тиража
+        if(history.some(entry => entry.drawId == drawId)) {
+            validationError.textContent = 'Тираж с таким номером уже существует';
+            validationError.style.display = 'block';
+            return false;
+        }
+        
+        // Проверка поля 1
+        const nums1 = field1.split(',').map(n => parseInt(n.trim()));
+        if(nums1.length !== 8 || nums1.some(isNaN)) {
+            validationError.textContent = 'Поле 1 должно содержать 8 чисел через запятую';
+            validationError.style.display = 'block';
+            return false;
+        }
+        
+        const invalid1 = nums1.filter(n => n < 1 || n > 20);
+        if(invalid1.length > 0) {
+            validationError.textContent = `Числа в поле 1 должны быть от 1 до 20. Ошибка: ${invalid1.join(', ')}`;
+            validationError.style.display = 'block';
+            return false;
+        }
+        
+        // Проверка дубликатов в поле 1
+        const unique = new Set(nums1);
+        if(unique.size !== 8) {
+            validationError.textContent = 'В поле 1 не должно быть повторяющихся чисел';
+            validationError.style.display = 'block';
+            return false;
+        }
+        
+        // Проверка поля 2
+        const num2 = parseInt(field2);
+        if(isNaN(num2) || num2 < 1 || num2 > 4) {
+            validationError.textContent = 'Число в поле 2 должно быть от 1 до 4';
+            validationError.style.display = 'block';
+            return false;
+        }
+        
+        return { drawId, nums1, num2 };
+    }
+
+    // --- Добавление в историю ---
+    document.getElementById('addHistoryBtn').onclick = () => {
+        const validData = validateDrawInput();
+        if(!validData) return;
+        
+        const { drawId, nums1, num2 } = validData;
+        
+        // Создаем объект результата розыгрыша
+        const result = {
+            drawId,
+            field1: nums1,
+            field2: num2,
+            timestamp: new Date().toISOString()
+        };
+        
+        // Ищем ставку для этого тиража
+        const betIndex = bets.findIndex(bet => bet.drawId === drawId);
+        
+        if (betIndex !== -1) {
+            const bet = bets[betIndex];
+            
+            // Сравниваем ставку с результатом
+            const matchedField1 = bet.numbers.field1.filter(n => nums1.includes(n)).length;
+            const matchedField2 = bet.numbers.field2 === num2 ? 1 : 0;
+            
+            const prizeKey = `${matchedField1},${matchedField2}`;
+            const prize = prizeTable[prizeKey];
+            
+            if (prize) {
+                result.winAmount = prize.amount;
+                result.winType = prize.label;
+                result.betMethod = bet.method;
+                
+                // Обновляем статистику
+                winStats[bet.method].wins++;
+                winStats[bet.method].won += prize.amount;
+                winStats[bet.method].balance = winStats[bet.method].won - winStats[bet.method].spent;
+            }
+            
+            // Удаляем ставку после расчета выигрыша
+            bets.splice(betIndex, 1);
+            saveBets();
+        }
+        
+        history.push(result);
+        saveHistory();
+        renderHistory();
+        updateStats();
+        updateWinStats();
+        
+        // Очищаем поля ввода
+        document.getElementById('drawId').value = '';
+        document.getElementById('drawField1').value = '';
+        document.getElementById('drawField2').value = '';
+    };
+
+    // --- Статистика чисел ---
+    const statsTable = document.getElementById('statsTable');
+
+    function updateStats() {
+        // Считаем частоты для обоих полей
+        const countField1 = Array(20).fill(0);
+        const countField2 = Array(4).fill(0);
+
+        history.forEach(entry => {
+            entry.field1.forEach(n => {
+                if(n >= 1 && n <= 20) countField1[n - 1]++;
+            });
+            if(entry.field2 >= 1 && entry.field2 <= 4) countField2[entry.field2 - 1]++;
+        });
+
+        // Находим максимальную частоту для нормализации
+        const maxCount1 = Math.max(...countField1);
+        const maxCount2 = Math.max(...countField2);
+
+        let html = '<tr><th>Число (8 из 20)</th><th>Частота</th><th>График</th><th>Число (1 из 4)</th><th>Частота</th><th>График</th></tr>';
+
+        for(let i = 0; i < 20; i++) {
+            const freq1 = countField1[i] || 0;
+            const freqPercent1 = maxCount1 ? Math.round((freq1 / maxCount1) * 100) : 0;
+            
+            const freq2 = (i < 4) ? countField2[i] || 0 : 0;
+            const freqPercent2 = (i < 4 && maxCount2) ? Math.round((freq2 / maxCount2) * 100) : 0;
+            
+            const hotColdClass1 = freq1 > (history.length / 2) ? 'hot' : 'cold';
+            const hotColdClass2 = (i < 4 && freq2 > (history.length / 4)) ? 'hot' : 'cold';
+            
+            html += `<tr>
+                <td>${i + 1}</td>
+                <td class="${hotColdClass1}">${freq1}</td>
+                <td><div class="frequency-bar"><div class="frequency-fill" style="width: ${freqPercent1}%"></div></div></td>
+                <td>${i < 4 ? i + 1 : ''}</td>
+                <td>${i < 4 ? `<span class="${hotColdClass2}">${freq2}</span>` : ''}</td>
+                <td>${i < 4 ? `<div class="frequency-bar"><div class="frequency-fill" style="width: ${freqPercent2}%"></div></div>` : ''}</td>
+            </tr>`;
+        }
+        statsTable.innerHTML = html;
+    }
+    
+    // --- Статистика выигрышей ---
+    const winStatsContainer = document.getElementById('winStats');
+    
+    function updateWinStats() {
+        winStatsContainer.innerHTML = '';
+        
+        const methods = {
+            cold: { name: 'Холодные', class: 'tag-cold' },
+            ogneva: { name: 'Огнева', class: 'tag-ogneva' },
+            karnaugh: { name: 'Карнауха', class: 'tag-karnaugh' },
+            uniform: { name: 'Равномерный', class: 'tag-uniform' },
+            lstm: { name: 'LSTM Прогноз', class: 'tag-lstm' }
+        };
+        
+        for(const [method, data] of Object.entries(winStats)) {
+            const methodData = methods[method];
+            const winRate = data.bets ? Math.round((data.wins / data.bets) * 100) : 0;
+            const roi = data.spent ? Math.round((data.won / data.spent) * 100) : 0;
+            
+            const statCard = document.createElement('div');
+            statCard.className = 'stat-card';
+            statCard.innerHTML = `
+                <div class="stat-label">${methodData.name}</div>
+                <div class="stat-value">${data.bets}</div>
+                <div class="stat-label">Ставки</div>
+                
+                <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+                    <div>
+                        <div class="stat-value win">${data.wins}</div>
+                        <div class="stat-label">Выиграно</div>
+                    </div>
+                    <div>
+                        <div class="stat-value">${winRate}%</div>
+                        <div class="stat-label">Процент</div>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 10px;">
+                    <div class="stat-value">${data.balance} ₽</div>
+                    <div class="stat-label">Баланс</div>
+                </div>
+                
+                <div style="margin-top: 5px; font-size: 0.8rem;">
+                    <div>Потрачено: ${data.spent} ₽</div>
+                    <div>Выиграно: ${data.won} ₽</div>
+                    <div>ROI: ${roi}%</div>
+                </div>
+            `;
+            winStatsContainer.appendChild(statCard);
+        }
+        
+        saveWinStats();
+    }
+    
+    // --- Методы генерации ---
+    let currentMethod = 'cold';
+    
+    // Переключение методов
+    document.querySelectorAll('.method-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.method-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentMethod = btn.dataset.method;
+        });
+    });
+    
+    // Генерация чисел
+    function generateNumbers() {
+        // Получаем следующий номер тиража
+        const lastDrawId = history.length > 0 
+            ? Math.max(...history.map(entry => parseInt(entry.drawId) || 0))
+            : 0;
+        const nextDrawId = lastDrawId + 1;
+        
+        // Для LSTM используем асинхронную генерацию
+        if (currentMethod === 'lstm') {
+            generateLSTMNumbers().then(generatedNumbers => {
+                // Сохраняем ставку
+                const bet = {
+                    drawId: nextDrawId.toString(),
+                    method: currentMethod,
+                    numbers: {
+                        field1: [...generatedNumbers.nums1],
+                        field2: generatedNumbers.num2
+                    },
+                    timestamp: new Date().toISOString()
+                };
+                
+                bets.push(bet);
+                saveBets();
+                
+                // Отображаем числа
+                displayNumbers(generatedNumbers.nums1, generatedNumbers.num2, currentMethod);
+                
+                // Увеличиваем счетчик ставок
+                if(winStats[currentMethod]) {
+                    winStats[currentMethod].bets++;
+                    winStats[currentMethod].spent += ticketPrice;
+                    winStats[currentMethod].balance = winStats[currentMethod].won - winStats[currentMethod].spent;
+                    updateWinStats();
+                }
+                
+                // Автоматически заполняем номер тиража
+                document.getElementById('drawId').value = nextDrawId;
+            });
+            return;
+        }
+        
+        // Для остальных методов - синхронная генерация
+        let generatedNumbers;
+        switch(currentMethod) {
+            case 'ogneva': 
+                generatedNumbers = generateOgnevaNumbers(); 
+                break;
+            case 'karnaugh': 
+                generatedNumbers = generateKarnaughNumbers(); 
+                break;
+            case 'uniform': 
+                generatedNumbers = generateUniformNumbers(); 
+                break;
+            default: 
+                generatedNumbers = generateColdNumbers();
+        }
+        
+        // Сохраняем ставку
+        const bet = {
+            drawId: nextDrawId.toString(),
+            method: currentMethod,
+            numbers: {
+                field1: [...generatedNumbers.nums1],
+                field2: generatedNumbers.num2
+            },
+            timestamp: new Date().toISOString()
+        };
+        
+        bets.push(bet);
+        saveBets();
+        
+        // Отображаем числа
+        displayNumbers(generatedNumbers.nums1, generatedNumbers.num2, currentMethod);
+        
+        // Увеличиваем счетчик ставок
+        if(winStats[currentMethod]) {
+            winStats[currentMethod].bets++;
+            winStats[currentMethod].spent += ticketPrice;
+            winStats[currentMethod].balance = winStats[currentMethod].won - winStats[currentMethod].spent;
+            updateWinStats();
+        }
+        
+        // Автоматически заполняем номер тиража
+        document.getElementById('drawId').value = nextDrawId;
+    }
+    
+    // Метод холодных чисел (оптимизированный)
+    function generateColdNumbers() {
+        const countField1 = Array(20).fill(0);
+        const countField2 = Array(4).fill(0);
+
+        history.forEach(entry => {
+            entry.field1.forEach(n => {
+                if(n >= 1 && n <= 20) countField1[n - 1]++;
+            });
+            if(entry.field2 >= 1 && entry.field2 <= 4) countField2[entry.field2 - 1]++;
+        });
+
+        if(history.length === 0) {
+            return {
+                nums1: generateRandomNumbers(),
+                num2: Math.floor(Math.random() * 4) + 1
+            };
+        }
+
+        // Выбираем 5 самых редких и 3 среднечастотных числа для первого поля
+        let numbers1 = Array.from({ length: 20 }, (_, i) => i + 1);
+        numbers1.sort((a, b) => countField1[a - 1] - countField1[b - 1]);
+        
+        // Берем 5 самых холодных
+        const coldNumbers = numbers1.slice(0, 5);
+        
+        // Берем 3 среднечастотных (из середины списка)
+        const mediumNumbers = numbers1.slice(9, 12);
+        
+        const selected1 = [...coldNumbers, ...mediumNumbers].sort((a, b) => a - b);
+
+        // Для второго поля выбираем самое редкое число
+        let numbers2 = Array.from({ length: 4 }, (_, i) => i + 1);
+        numbers2.sort((a, b) => countField2[a - 1] - countField2[b - 1]);
+        const selected2 = numbers2[0];
+
+        return { nums1: selected1, num2: selected2 };
+    }
+    
+    // Метод Огнева (исправленный)
+    function generateOgnevaNumbers() {
+        if (history.length < 3) {
+            return generateColdNumbers();
+        }
+
+        // Правильный расчет среднего характеристического числа
+        let totalSum = 0;
+        history.forEach(entry => {
+            totalSum += entry.field1.reduce((a, b) => a + b, 0) + entry.field2;
+        });
+        const avg = totalSum / history.length;
+
+        // Генерация чисел в диапазоне среднего значения
+        const center = Math.round(avg / 2);
+        const range = 3;
+
+        let bestCombination = null;
+        let bestDiff = Infinity;
+
+        for (let attempt = 0; attempt < 50; attempt++) {
+            const nums1 = [];
+            let attempts = 0;
+            
+            // Защита от бесконечного цикла
+            while (nums1.length < 8 && attempts < 100) {
+                const base = Math.max(1, Math.min(20, center + Math.floor(Math.random() * (range * 2 + 1)) - range));
+                if (!nums1.includes(base)) {
+                    nums1.push(base);
+                }
+                attempts++;
+            }
+            
+            // Если не удалось сгенерировать 8 чисел, пропускаем попытку
+            if (nums1.length < 8) continue;
+            
+            nums1.sort((a, b) => a - b);
+            
+            const num2 = Math.max(1, Math.min(4, Math.round(center / 5) || Math.floor(Math.random() * 4) + 1));
+            
+            const currentSum = nums1.reduce((a, b) => a + b, 0) + num2;
+            const diff = Math.abs(currentSum - avg);
+            
+            if (diff < bestDiff) {
+                bestDiff = diff;
+                bestCombination = { nums1, num2 };
+            }
+        }
+
+        return bestCombination || generateColdNumbers();
+    }
+    
+    // Метод Карнауха (исправленный)
+    function generateKarnaughNumbers() {
+        if (history.length < 5) {
+            return generateColdNumbers();
+        }
+
+        const countField1 = Array(20).fill(0);
+        history.forEach(entry => {
+            entry.field1.forEach(n => countField1[n - 1]++);
+        });
+
+        const numbers = Array.from({ length: 20 }, (_, i) => i + 1);
+        numbers.sort((a, b) => countField1[a - 1] - countField1[b - 1]);
+
+        // Правильный выбор диапазонов
+        const coldNumbers = numbers.slice(0, 3); // 3 самых холодных
+        const mediumNumbers = numbers.slice(8, 12); // 4 средних
+        const hotNumbers = numbers.slice(17, 20); // 3 самых горячих
+        
+        // Комбинирование и проверка уникальности
+        const combined = [...new Set([...coldNumbers, ...mediumNumbers, ...hotNumbers])];
+        
+        // Если получилось меньше 8 чисел, добиваем случайными
+        let selected1 = combined.slice(0, 8);
+        if (selected1.length < 8) {
+            const allNumbers = Array.from({ length: 20 }, (_, i) => i + 1);
+            const availableNumbers = allNumbers.filter(n => !selected1.includes(n));
+            
+            while (selected1.length < 8 && availableNumbers.length > 0) {
+                const randomIndex = Math.floor(Math.random() * availableNumbers.length);
+                selected1.push(availableNumbers.splice(randomIndex, 1)[0]);
+            }
+        }
+        
+        selected1 = selected1.slice(0, 8).sort((a, b) => a - b);
+
+        // Оптимальный выбор для второго поля
+        const countField2 = Array(4).fill(0);
+        history.forEach(entry => countField2[entry.field2 - 1]++);
+        const num2 = countField2.indexOf(Math.max(...countField2)) + 1;
+
+        return { nums1: selected1, num2 };
+    }
+    
+    // Метод равномерного распределения (новый)
+    function generateUniformNumbers() {
+        const countField1 = Array(20).fill(0);
+        const countField2 = Array(4).fill(0);
+
+        history.forEach(entry => {
+            entry.field1.forEach(n => {
+                if (n >= 1 && n <= 20) countField1[n - 1]++;
+            });
+            if (entry.field2 >= 1 && entry.field2 <= 4) countField2[entry.field2 - 1]++;
+        });
+
+        if (history.length === 0) {
+            return {
+                nums1: generateRandomNumbers(),
+                num2: Math.floor(Math.random() * 4) + 1
+            };
+        }
+
+        // Разделяем числа на группы по частоте выпадения
+        const groups = [
+            { start: 1, end: 5 },   // Группа 1-5
+            { start: 6, end: 10 },  // Группа 6-10
+            { start: 11, end: 15 }, // Группа 11-15
+            { start: 16, end: 20 }  // Группа 16-20
+        ];
+
+        const selected1 = [];
+
+        // Выбираем по 2 числа из каждой группы
+        groups.forEach(group => {
+            const groupNumbers = [];
+            for (let i = group.start; i <= group.end; i++) {
+                groupNumbers.push(i);
+            }
+
+            // Сортируем по частоте выпадения (от наименьшей)
+            groupNumbers.sort((a, b) => countField1[a - 1] - countField1[b - 1]);
+
+            // Выбираем 2 самых редких числа в группе
+            selected1.push(groupNumbers[0], groupNumbers[1]);
+        });
+
+        // Для второго поля выбираем наименее выпадавшее число
+        const minCount = Math.min(...countField2);
+        const leastFrequent = [];
+        countField2.forEach((count, idx) => {
+            if(count === minCount) leastFrequent.push(idx + 1);
+        });
+        
+        const selected2 = leastFrequent[Math.floor(Math.random() * leastFrequent.length)] || 1;
+        
+        return { nums1: selected1, num2: selected2 };
+    }
+    
+    // Случайная генерация (вспомогательная)
+    function generateRandomNumbers() {
+        const nums1 = [];
+        const availableNumbers = Array.from({ length: 20 }, (_, i) => i + 1);
+        
+        while (nums1.length < 8 && availableNumbers.length > 0) {
+            const randomIndex = Math.floor(Math.random() * availableNumbers.length);
+            nums1.push(availableNumbers.splice(randomIndex, 1)[0]);
+        }
+        
+        nums1.sort((a, b) => a - b);
+        return nums1;
+    }
+    
+    // Отображение сгенерированных чисел
+    function displayNumbers(nums1, num2, method = 'cold') {
+        const field1 = document.getElementById('field1');
+        const field2 = document.getElementById('field2');
+        field1.innerHTML = '';
+        field2.innerHTML = '';
+
+        nums1.forEach(n => {
+            const div = document.createElement('div');
+            div.className = 'number';
+            if (method === 'lstm') {
+                div.classList.add('lstm');
+            } else if(method === 'karnaugh' && nums1.indexOf(n) < 5) {
+                div.classList.add('special');
+            } else if(method === 'uniform') {
+                div.classList.add('special');
+            }
+            div.textContent = n;
+            field1.appendChild(div);
+        });
+        
+        const div2 = document.createElement('div');
+        div2.className = 'number small';
+        if (method === 'lstm') {
+            div2.classList.add('lstm');
+        } else if(method === 'ogneva' || method === 'uniform') {
+            div2.classList.add('special');
+        }
+        div2.textContent = num2;
+        field2.appendChild(div2);
+        
+        // Анимация выбора
+        setTimeout(() => {
+            field1.querySelectorAll('.number').forEach(el => {
+                el.classList.add('selected');
+            });
+            div2.classList.add('selected');
+        }, 100);
+    }
+
+    // --- LSTM Модель (ИСПРАВЛЕННАЯ) ---
+    let lstmModel = null;
+    let isTraining = false;
+    const trainingStatus = document.getElementById('trainingStatus');
+    const trainingMessage = document.getElementById('trainingMessage');
+    const trainingProgress = document.getElementById('trainingProgress');
+    const modelAccuracy = document.getElementById('modelAccuracy');
+    const modelDataSize = document.getElementById('modelDataSize');
+    const trainModelBtn = document.getElementById('trainModelBtn');
+    
+    // Инициализация модели
+    async function initModel() {
+        trainingStatus.style.display = 'block';
+        trainingMessage.textContent = 'Инициализация модели...';
+        
+        // Проверяем наличие сохраненной модели
+        try {
+            const modelInfo = JSON.parse(localStorage.getItem('lstmModelInfo') || '{}');
+            if (modelInfo.modelExists) {
+                try {
+                    // Загружаем модель из IndexedDB
+                    lstmModel = await tf.loadLayersModel('indexeddb://rapido-lstm-model');
+                    
+                    // Явная компиляция модели после загрузки
+                    lstmModel.compile({
+                        optimizer: tf.train.adam(0.0005),
+                        loss: 'binaryCrossentropy',
+                        metrics: ['accuracy']
+                    });
+                    
+                    modelAccuracy.textContent = modelInfo.accuracy ? `${modelInfo.accuracy}%` : '0%';
+                    trainingMessage.textContent = 'Модель загружена';
+                } catch (e) {
+                    console.error('Ошибка загрузки модели:', e);
+                    // Создаем новую модель при ошибке загрузки
+                    createModel();
+                    localStorage.removeItem('lstmModelInfo');
+                    trainingMessage.textContent = 'Создана новая модель';
+                }
+                return;
+            }
+        } catch (e) {
+            console.log('Модель не найдена, создаем новую', e);
+        }
+        
+        // Создаем новую модель
+        createModel();
+        trainingMessage.textContent = 'Готово к обучению';
+    }
+    
+    // Создание архитектуры модели
+    function createModel() {
+        lstmModel = tf.sequential();
+        
+        // Улучшенная архитектура
+        lstmModel.add(tf.layers.lstm({
+            units: 128,
+            inputShape: [10, 24],
+            returnSequences: true
+        }));
+        
+        lstmModel.add(tf.layers.dropout({rate: 0.3}));
+        
+        lstmModel.add(tf.layers.lstm({
+            units: 64,
+            returnSequences: false
+        }));
+        
+        lstmModel.add(tf.layers.dropout({rate: 0.3}));
+        
+        lstmModel.add(tf.layers.dense({
+            units: 48,
+            activation: 'relu'
+        }));
+        
+        // Выходной слой
+        lstmModel.add(tf.layers.dense({
+            units: 24,
+            activation: 'sigmoid'
+        }));
+        
+        // Компиляция модели
+        lstmModel.compile({
+            optimizer: tf.train.adam(0.0005),
+            loss: 'binaryCrossentropy',
+            metrics: ['accuracy']
+        });
+    }
+    
+    // Подготовка данных для обучения
+    function prepareData() {
+        if (history.length < 15) {
+            trainingMessage.textContent = 'Недостаточно данных (минимум 15 тиражей)';
+            return null;
+        }
+        
+        const sequenceLength = 10;
+        const X = [];
+        const y = [];
+        
+        // Преобразуем историю в числовые последовательности
+        for (let i = sequenceLength; i < history.length; i++) {
+            const sequence = [];
+            
+            // Формируем последовательность из 10 предыдущих тиражей
+            for (let j = i - sequenceLength; j < i; j++) {
+                const draw = history[j];
+                const vector = Array(24).fill(0);
+                
+                // Поле 1 (20 чисел)
+                draw.field1.forEach(num => {
+                    if (num >= 1 && num <= 20) vector[num-1] = 1;
+                });
+                
+                // Поле 2 (4 числа)
+                if (draw.field2 >= 1 && draw.field2 <= 4) {
+                    vector[20 + draw.field2 - 1] = 1;
+                }
+                
+                sequence.push(vector);
+            }
+            
+            X.push(sequence);
+            
+            // Целевой тираж
+            const targetDraw = history[i];
+            const targetVector = Array(24).fill(0);
+            
+            targetDraw.field1.forEach(num => {
+                if (num >= 1 && num <= 20) targetVector[num-1] = 1;
+            });
+            
+            if (targetDraw.field2 >= 1 && targetDraw.field2 <= 4) {
+                targetVector[20 + targetDraw.field2 - 1] = 1;
+            }
+            
+            y.push(targetVector);
+        }
+        
+        return {
+            X: tf.tensor3d(X),
+            y: tf.tensor2d(y)
+        };
+    }
+    
+    // Обучение модели
+    async function trainModel() {
+        if (isTraining || history.length < 15) return;
+        
+        isTraining = true;
+        trainingStatus.style.display = 'block';
+        trainingMessage.textContent = 'Подготовка данных...';
+        trainModelBtn.disabled = true;
+        
+        // Подготовка данных
+        const data = prepareData();
+        if (!data) {
+            trainingMessage.textContent = 'Недостаточно данных для обучения';
+            isTraining = false;
+            trainModelBtn.disabled = false;
+            return;
+        }
+        
+        trainingMessage.textContent = 'Обучение модели...';
+        
+        try {
+            // Обучение модели
+            const historyInfo = await lstmModel.fit(data.X, data.y, {
+                epochs: 100,
+                batchSize: 16,
+                validationSplit: 0.2,
+                callbacks: {
+                    onEpochEnd: async (epoch, logs) => {
+                        trainingMessage.textContent = `Эпоха ${epoch + 1}/100...`;
+                        trainingProgress.style.width = `${((epoch + 1) / 100) * 100}%`;
+                        modelAccuracy.textContent = `${Math.round(logs.acc * 100)}%`;
+                        await tf.nextFrame(); // Даем браузеру обновиться
+                        
+                        // Ранняя остановка при достижении хорошего результата
+                        if (logs.val_loss < 0.1) {
+                            lstmModel.stopTraining = true;
+                        }
+                    }
+                }
+            });
+            
+            // Сохраняем модель
+            await lstmModel.save('indexeddb://rapido-lstm-model');
+            
+            // Сохраняем метаданные
+            const accuracy = Math.round(historyInfo.history.acc[historyInfo.history.acc.length - 1] * 100);
+            localStorage.setItem('lstmModelInfo', JSON.stringify({
+                accuracy: accuracy,
+                trainedAt: new Date().toISOString(),
+                dataSize: history.length,
+                modelExists: true
+            }));
+            
+            modelAccuracy.textContent = `${accuracy}%`;
+            trainingMessage.textContent = 'Обучение завершено!';
+        } catch (e) {
+            console.error('Ошибка обучения:', e);
+            trainingMessage.textContent = 'Ошибка обучения: ' + e.message;
+        } finally {
+            isTraining = false;
+            trainModelBtn.disabled = false;
+            // Освобождаем память
+            if (data) {
+                data.X.dispose();
+                data.y.dispose();
+            }
+        }
+    }
+    
+    // Генерация чисел с помощью LSTM
+    async function generateLSTMNumbers() {
+        if (!lstmModel || history.length < 10) {
+            return generateColdNumbers(); // Fallback
+        }
+        
+        try {
+            // Создаем последовательность из последних 10 тиражей
+            const sequence = [];
+            
+            for (let i = history.length - 10; i < history.length; i++) {
+                const draw = history[i];
+                const vector = Array(24).fill(0);
+                
+                draw.field1.forEach(num => {
+                    if (num >= 1 && num <= 20) vector[num-1] = 1;
+                });
+                
+                if (draw.field2 >= 1 && draw.field2 <= 4) {
+                    vector[20 + draw.field2 - 1] = 1;
+                }
+                
+                sequence.push(vector);
+            }
+            
+            // Преобразуем в тензор
+            const input = tf.tensor3d([sequence]);
+            
+            // Получаем предсказание
+            const prediction = lstmModel.predict(input);
+            const values = await prediction.data();
+            
+            // Освобождаем память
+            prediction.dispose();
+            input.dispose();
+            
+            // 1. Нормализуем вероятности для поля 1
+            const field1Probs = values.slice(0, 20);
+            const sum1 = field1Probs.reduce((a, b) => a + b, 0);
+            const normalizedProbs1 = sum1 > 0 ? 
+                field1Probs.map(p => p / sum1) : 
+                Array(20).fill(1/20);
+            
+            // 2. Выбираем числа с учетом вероятностей
+            const nums1 = [];
+            const availableNumbers = Array.from({ length: 20 }, (_, i) => i + 1);
+            
+            for (let i = 0; i < 8; i++) {
+                // Создаем распределение вероятностей
+                let rand = Math.random();
+                let cumulative = 0;
+                let selectedIndex = 0;
+                
+                for (let j = 0; j < availableNumbers.length; j++) {
+                    const num = availableNumbers[j];
+                    cumulative += normalizedProbs1[num-1];
+                    if (rand <= cumulative) {
+                        selectedIndex = j;
+                        break;
+                    }
+                }
+                
+                nums1.push(availableNumbers[selectedIndex]);
+                availableNumbers.splice(selectedIndex, 1);
+                
+                // Пересчитываем вероятности для оставшихся чисел
+                const newSum = availableNumbers.reduce(
+                    (sum, num) => sum + normalizedProbs1[num-1], 0
+                );
+                
+                if (newSum > 0) {
+                    for (let j = 0; j < availableNumbers.length; j++) {
+                        const num = availableNumbers[j];
+                        normalizedProbs1[num-1] /= newSum;
+                    }
+                }
+            }
+            
+            nums1.sort((a, b) => a - b);
+            
+            // 3. Выбираем число для поля 2
+            const field2Probs = values.slice(20, 24);
+            const sum2 = field2Probs.reduce((a, b) => a + b, 0);
+            const normalizedProbs2 = sum2 > 0 ? 
+                field2Probs.map(p => p / sum2) : 
+                Array(4).fill(0.25);
+            
+            let rand = Math.random();
+            let cumulative = 0;
+            let field2Num = 1;
+            
+            for (let i = 0; i < 4; i++) {
+                cumulative += normalizedProbs2[i];
+                if (rand <= cumulative) {
+                    field2Num = i + 1;
+                    break;
+                }
+            }
+            
+            return { nums1, num2: field2Num };
+        } catch (e) {
+            console.error('Ошибка генерации LSTM:', e);
+            return generateColdNumbers();
+        }
+    }
+    
+    // --- Инициализация при загрузке ---
+    document.addEventListener('DOMContentLoaded', async () => {
+        document.getElementById('genBtn').addEventListener('click', generateNumbers);
+        trainModelBtn.addEventListener('click', trainModel);
+        
+        // Установка стоимости билета в поле ввода
+        document.getElementById('ticketPriceInput').value = ticketPrice;
+        
+        // Обработчик изменения стоимости билета
+        document.getElementById('updatePriceBtn').addEventListener('click', () => {
+            const newPrice = parseInt(document.getElementById('ticketPriceInput').value);
+            if (isNaN(newPrice) || newPrice < 1) {
+                alert("Введите корректную стоимость билета (минимум 1 рубль)");
+                return;
+            }
+            
+            // Пересчет статистики с новой стоимостью
+            for (const method in winStats) {
+                winStats[method].spent = winStats[method].bets * newPrice;
+                winStats[method].balance = winStats[method].won - winStats[method].spent;
+            }
+            
+            ticketPrice = newPrice;
+            saveTicketPrice();
+            saveWinStats();
+            updateWinStats();
+        });
+        
+        updateStats();
+        updateWinStats();
+        renderHistory();
+        
+        // Инициализируем LSTM модель
+        await initModel();
+        
+        // Автоматическое обучение при наличии данных
+        if (history.length >= 15) {
+            setTimeout(trainModel, 1000);
+        }
+    });
+</script>
+</body>
+</html>
