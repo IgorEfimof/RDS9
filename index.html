@@ -3,10 +3,6 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <link rel="apple-touch-icon" sizes="180x180" href="icons/icon180.png">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="RDS9">
-    <meta name="apple-mobile-web-app-capable" content="yes">
     <title>Рапидо Старт с Частотным Анализом</title>
     <style>
         :root {
@@ -709,12 +705,28 @@
         cold: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0, currentPeriod: 0, winPeriods: [] },
         ogneva: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0, currentPeriod: 0, winPeriods: [] },
         karnaugh: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0, currentPeriod: 0, winPeriods: [] },
-        uniform: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0, currentPeriod: 0, winPeriods: [] }
+        uniform: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0, currentPeriod: 0, winPeriods: [] },
+        prediction: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0, currentPeriod: 0, winPeriods: [] }
     }));
     
     if (typeof winStats === 'string') {
         winStats = JSON.parse(winStats);
     }
+    
+    // Инициализация для новых методов
+    ['cold', 'ogneva', 'karnaugh', 'uniform', 'prediction'].forEach(method => {
+        if (!winStats[method]) {
+            winStats[method] = { 
+                bets: 0, 
+                wins: 0, 
+                spent: 0, 
+                won: 0, 
+                balance: 0,
+                currentPeriod: 0,
+                winPeriods: [] 
+            };
+        }
+    });
 
     // Таблица выигрышей
     const prizeTable = {
@@ -889,7 +901,8 @@
                 cold: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0, currentPeriod: 0, winPeriods: [] },
                 ogneva: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0, currentPeriod: 0, winPeriods: [] },
                 karnaugh: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0, currentPeriod: 0, winPeriods: [] },
-                uniform: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0, currentPeriod: 0, winPeriods: [] }
+                uniform: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0, currentPeriod: 0, winPeriods: [] },
+                prediction: { bets: 0, wins: 0, spent: 0, won: 0, balance: 0, currentPeriod: 0, winPeriods: [] }
             };
             saveWinStats();
             updateWinStats();
@@ -992,8 +1005,8 @@
                 winStats[bet.method].won += prize.amount;
                 winStats[bet.method].balance = winStats[bet.method].won - winStats[bet.method].spent;
                 
-                // Фиксируем период выигрыша
-                winStats[bet.method].winPeriods.push(winStats[bet.method].currentPeriod);
+                // Фиксируем период выигрыша (ИСПРАВЛЕННАЯ ЧАСТЬ)
+                winStats[bet.method].winPeriods.push(winStats[bet.method].currentPeriod + 1);
                 winStats[bet.method].currentPeriod = 0;
             } else {
                 // Увеличиваем период без выигрыша
@@ -1072,7 +1085,8 @@
             cold: { name: 'Холодные', class: 'tag-cold' },
             ogneva: { name: 'Огнева', class: 'tag-ogneva' },
             karnaugh: { name: 'Карнауха', class: 'tag-karnaugh' },
-            uniform: { name: 'Равномерный', class: 'tag-uniform' }
+            uniform: { name: 'Равномерный', class: 'tag-uniform' },
+            prediction: { name: 'Прогноз', class: 'tag-prediction' }
         };
         
         for(const [method, data] of Object.entries(winStats)) {
@@ -1133,24 +1147,25 @@
         
         for (const [method, name] of Object.entries(methods)) {
             const data = winStats[method];
-            if (!data) continue;
+            if (!data || data.wins < 1) continue; // Минимум 1 выигрыш
             
-            const winRate = data.bets ? (data.wins / data.bets) * 100 : 0;
-            const avgPeriod = data.wins > 0 
-                ? data.winPeriods.reduce((a, b) => a + b, 0) / data.winPeriods.length
-                : 0;
+            const hasEnoughData = data.wins > 1;
+            const avgPeriod = hasEnoughData ? 
+                data.winPeriods.reduce((a, b) => a + b, 0) / data.winPeriods.length :
+                data.currentPeriod;
             
-            // Рассчитываем вероятность выигрыша
+            // Расчет вероятности
             let probability = 0;
             if (avgPeriod > 0) {
-                // Чем больше текущий период превышает средний, тем выше вероятность
                 probability = Math.min(95, Math.round(
                     (1 - Math.exp(-data.currentPeriod / avgPeriod)) * 100
                 ));
             }
             
-            // Максимальный период для визуализации
+            // Визуализация
             const maxPeriod = Math.max(avgPeriod * 1.5, data.currentPeriod, 10);
+            const currentWidth = (data.currentPeriod / maxPeriod) * 100;
+            const avgPosition = (avgPeriod / maxPeriod) * 100;
             
             const row = document.createElement('div');
             row.className = 'prediction-row';
@@ -1159,16 +1174,25 @@
                     <strong>${name}:</strong> 
                     <span class="prediction">${probability}%</span>
                     <div class="prediction-bar">
-                        <div class="prediction-fill" style="width: ${(data.currentPeriod / maxPeriod) * 100}%"></div>
-                        ${avgPeriod > 0 ? `<div class="prediction-marker" style="left: ${(avgPeriod / maxPeriod) * 100}%"></div>` : ''}
+                        <div class="prediction-fill" style="width: ${currentWidth}%"></div>
+                        ${hasEnoughData ? 
+                            `<div class="prediction-marker" style="left: ${avgPosition}%"></div>` : 
+                            ''
+                        }
                     </div>
                     <div class="prediction-label">
-                        ${data.currentPeriod} из ~${Math.round(avgPeriod)} ставок
+                        ${data.currentPeriod} ставок без выигрыша${
+                            hasEnoughData ? ` | Средний: ${Math.round(avgPeriod)}` : ''
+                        }
                     </div>
                 </div>
             `;
-            
             container.appendChild(row);
+        }
+        
+        // Добавлено для отображения информации даже при недостатке данных
+        if (container.innerHTML === '') {
+            container.innerHTML = '<p>Добавьте больше выигрышей для анализа</p>';
         }
     }
     
@@ -1213,9 +1237,6 @@
             saveBets();
             
             // Увеличиваем счетчик ставок
-            winStats.prediction = winStats.prediction || { 
-                bets: 0, wins: 0, spent: 0, won: 0, balance: 0, currentPeriod: 0, winPeriods: [] 
-            };
             winStats.prediction.bets++;
             winStats.prediction.spent += ticketPrice;
             winStats.prediction.balance = winStats.prediction.won - winStats.prediction.spent;
@@ -1283,7 +1304,11 @@
             const data = winStats[method];
             if (!data || data.wins === 0) continue;
             
-            const avgPeriod = data.winPeriods.reduce((a, b) => a + b, 0) / data.winPeriods.length;
+            const hasEnoughData = data.wins > 1;
+            const avgPeriod = hasEnoughData ? 
+                data.winPeriods.reduce((a, b) => a + b, 0) / data.winPeriods.length :
+                data.currentPeriod;
+            
             const probability = (1 - Math.exp(-data.currentPeriod / avgPeriod)) * 100;
             
             if (probability > bestProbability) {
@@ -1580,11 +1605,6 @@
         updateWinStats();
         updatePredictions();
         renderHistory();
-        
-        // Инициализация для метода прогнозирования
-        winStats.prediction = winStats.prediction || { 
-            bets: 0, wins: 0, spent: 0, won: 0, balance: 0, currentPeriod: 0, winPeriods: [] 
-        };
     });
 </script>
 </body>
