@@ -3,10 +3,6 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <link rel="apple-touch-icon" sizes="180x180" href="icons/icon180.png">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="RDS9">
-    <meta name="apple-mobile-web-app-capable" content="yes">
     <title>Рапидо Старт с Частотным Анализом</title>
     <style>
         :root {
@@ -501,6 +497,16 @@
             color: var(--prediction-color);
             font-weight: bold;
         }
+        .prediction-result {
+            padding: 10px;
+            margin: 10px 0;
+            background: rgba(0, 188, 212, 0.1);
+            border-radius: 8px;
+            border-left: 4px solid var(--prediction-color);
+        }
+        .method-name {
+            font-weight: bold;
+        }
         
         @media (max-width: 400px) {
             .ticket-price-container {
@@ -546,6 +552,14 @@
             <div class="prediction-info" id="predictionInfo">
                 <h3>Анализ выигрышей:</h3>
                 <div id="methodPredictions"></div>
+                
+                <!-- Блок для отображения результата прогноза -->
+                <div id="predictionResult" class="prediction-result" style="display: none;">
+                    <strong>Результат прогноза:</strong>
+                    <p>Выбран метод: <span class="method-name" id="selectedMethod"></span></p>
+                    <p>Вероятность выигрыша: <span class="prediction" id="methodProbability"></span></p>
+                    <p>Причина: <span id="selectionReason"></span></p>
+                </div>
             </div>
             
             <p>Поле 1 (8 из 20):</p>
@@ -1210,6 +1224,9 @@
             btn.classList.add('active');
             currentMethod = btn.dataset.method;
             updatePredictions();
+            
+            // Скрываем блок результата при переключении методов
+            document.getElementById('predictionResult').style.display = 'none';
         });
     });
     
@@ -1221,10 +1238,19 @@
             : 0;
         const nextDrawId = lastDrawId + 1;
         
+        // Скрываем предыдущий результат прогноза
+        document.getElementById('predictionResult').style.display = 'none';
+        
         // Для метода прогнозирования используем специальную логику
         if (currentMethod === 'prediction') {
             const generated = generatePredictionNumbers();
             displayNumbers(generated.nums1, generated.num2, 'prediction');
+            
+            // Показываем результат прогноза
+            document.getElementById('selectedMethod').textContent = generated.methodName;
+            document.getElementById('methodProbability').textContent = `${generated.probability}%`;
+            document.getElementById('selectionReason').textContent = generated.reason;
+            document.getElementById('predictionResult').style.display = 'block';
             
             // Сохраняем ставку
             const bet = {
@@ -1303,6 +1329,15 @@
         // 1. Выбираем метод с наибольшей вероятностью выигрыша
         let bestMethod = 'cold';
         let bestProbability = 0;
+        let reason = '';
+        let methodName = 'Холодные';
+        
+        const methodNames = {
+            cold: 'Холодные',
+            ogneva: 'Огнева',
+            karnaugh: 'Карнауха',
+            uniform: 'Равномерный'
+        };
         
         for (const method of ['cold', 'ogneva', 'karnaugh', 'uniform']) {
             const data = winStats[method];
@@ -1318,20 +1353,47 @@
             if (probability > bestProbability) {
                 bestProbability = probability;
                 bestMethod = method;
+                methodName = methodNames[method];
+                
+                if (hasEnoughData) {
+                    reason = `Текущий период (${data.currentPeriod}) близок к среднему (${Math.round(avgPeriod)})`;
+                } else {
+                    reason = `Выбран как единственный метод с выигрышами`;
+                }
             }
         }
         
+        // Если не нашли подходящий метод
+        if (bestProbability === 0) {
+            bestMethod = 'cold';
+            methodName = 'Холодные';
+            reason = 'Нет данных для прогноза, использован метод по умолчанию';
+            bestProbability = 50;
+        }
+        
         // 2. Генерируем числа по выбранному методу
+        let generatedNumbers;
         switch(bestMethod) {
             case 'ogneva': 
-                return generateOgnevaNumbers(); 
+                generatedNumbers = generateOgnevaNumbers(); 
+                break;
             case 'karnaugh': 
-                return generateKarnaughNumbers(); 
+                generatedNumbers = generateKarnaughNumbers(); 
+                break;
             case 'uniform': 
-                return generateUniformNumbers(); 
+                generatedNumbers = generateUniformNumbers(); 
+                break;
             default: 
-                return generateColdNumbers();
+                generatedNumbers = generateColdNumbers();
         }
+        
+        return {
+            nums1: generatedNumbers.nums1,
+            num2: generatedNumbers.num2,
+            methodName: methodName,
+            probability: Math.round(bestProbability),
+            reason: reason
+        };
     }
     
     // Метод холодных чисел
